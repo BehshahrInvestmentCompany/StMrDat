@@ -12,6 +12,7 @@ clc
 %****************************
 onestep=NaN;
 horizon=4;
+isPersianDate=1;
 % if isnan(onestep)==1
 %     OS=0;
 % else
@@ -19,7 +20,6 @@ horizon=4;
 % end
 %--- OS=0 if the last quarter is compelete
 OneStep=nan;% OneStep=NaN;
-
 % %---------------------Read Data from Excell file---------------------------
 % Target=xlsread('Input\Data_level.xlsx', 'Target');
 % Exp_Var=xlsread('Input\Data_level.xlsx', 'Exp_Var');
@@ -30,6 +30,8 @@ Data=dataset('xls','Input\Data.xlsx','sheet','Data');
 Target_var_names={'CPI' , 'Gold' , 'USD'  , 'SI'};
 Dum_var_name={'D1','D2'};
 nd=20; % Periods to find the best models
+%the first row is the transformations
+FRT=1;
 %%
 for Tvarnameindx=1:length(Target_var_names)
     Target_var_name=Target_var_names{Tvarnameindx};
@@ -41,11 +43,13 @@ for Tvarnameindx=1:length(Target_var_names)
     
     Dum_var_Pos=cellfun(@(x) sum(strcmp(Dum_var_name,x))>0,Var_names,'UniformOutput',true);
     Dummy=double(Data(:,Dum_var_Pos));
+    if all(isempty(Dummy))
+        Dummy=zeros(size(Dummy,1),1);
+    end
     Exp_Var=double(Data(:,~(Date_var_Pos+Target_var_Pos+Dum_var_Pos)));
     Exp_Var_names=Var_names(~(Date_var_Pos+Target_var_Pos+Dum_var_Pos));
     Date=double(Data(:,Date_var_Pos));
-    periodicity=Date(1); % 4 for quarterly data and 12 for monthly and 1 for anual
-    Date=Date(2:end);
+    
     % dataset=[ Exp_Var_];
     C=length(Exp_Var_names);
     nv=3;                 %%% number of variable in the model %%%
@@ -53,9 +57,21 @@ for Tvarnameindx=1:length(Target_var_names)
     
     %---------------------Preaparing Data--------------------------------------
     T=[Target(1,:), Exp_Var(1,:)];
+    if FRT==1
+        Target=Target(2:end,:);
+        Exp_Var=Exp_Var(2:end,:);
+        % F1=F1(2:end,2:end);
+        % F2=F2(2:end,2:end);
+        periodicity=Date(1); % 4 for quarterly data and 12 for monthly and 1 for anual
+        Dummy=Dummy(2:end,:);
+        Date=Date(2:end);
+    elseif FRT==0
+        periodicity=12;
+        T=410*ones(size(T));
+    end
     %T is transformation row vector for data
     %so that [0 1 2 3 4 5]=[no change, Ln, Diff, Double Diff, Diff_Ln, Double Diff_Ln]
-    Trans_mod={'no_change', 'Ln', 'Diff', 'Double_Diff', 'Diff_Ln', 'Double Diff_Ln'};
+    Trans_mod={'no\_change', 'Ln', 'Diff', 'Double\_Diff', 'Diff\_Ln', 'Double\_Diff\_Ln'};
     Tt2=floor(log(T(1))./log(10))+1;
     if ~isfinite(Tt2)
         Tt2=1;
@@ -66,11 +82,6 @@ for Tvarnameindx=1:length(Target_var_names)
     end
     T=temp_;
     clear temp_
-    Target=Target(2:end,:);
-    Exp_Var=Exp_Var(2:end,:);
-    % F1=F1(2:end,2:end);
-    % F2=F2(2:end,2:end);
-    Dummy=Dummy(2:end,:);
     
     [Target, Exp_Var, Dummy,Date]=Real_time(Target, Exp_Var, Dummy,Date);
     
@@ -84,31 +95,33 @@ for Tvarnameindx=1:length(Target_var_names)
     
     for tt=1:Tt2
         [Target, Exp_Var, Dummy,Date]=transformation(Target_Level_X12, Exp_Var, Dummy, T(tt,:),Date);
-        
+        if isPersianDate
+            Date=Cal_conv(Date,0);
+        end
         %-------------------------Sample Period------------------------------------
-        fyds=fix(Date(1));    %--- First Year of Data Set
-        % if fyds>1300
-        %     fyds=fyds-1300;
-        % end
-        fqds=round(10*(Date(1)-fix(Date(1))));     %--- First quarter of Data Set
-        %lyds=92;   %--- Last Year of Data Set
-        %lqds=3;    %--- Last Quarter of Date Set
-        %-------------------------Forecasting Period for Evaluating Models---------
+        %--- First Year of Data Set
+        fyds=str2double(datestr(Date(1),'yyyy'));
+        %--- First Month of Data Set
+        fqds=str2double(datestr(Date(1),'mm'));
+        %--- Last Year of Historical Data
+        lyf=str2double(datestr(Date(end),'yyyy'));
+        %--- Last Month of Historical Data
+        lqf=str2double(datestr(Date(end),'mm'));
+        %--- First Year of Sampling
+        fyf=str2double(datestr(Date(end)-nd*365/periodicity,'yyyy'));
+        %--- First Month of Sampling
+        fqf=str2double(datestr(Date(end)-nd*365/periodicity,'mm'));
         
-        lyf=fix(Date(end));     %--- Last Year of Forecast
-        lqf=round(10*(Date(end)-fix(Date(end))));      %--- Last Quarter of Forecate
-        
-        fyf=lyf-fix(nd/periodicity);%1390;     %--- First Year of Forecasting
-        fqf=lqf-nd+periodicity*fix(nd/periodicity);      %--- First Quarter of Forecast
         if fqf<=0
             fyf=fyf-1;
             fqf=fqf+periodicity;
         end
         
         dl=0;%length(Date)-length(Target);  %--- Real Time and transformation %% idon know what is this
-        sd=periodicity*(fyf-fyds)+(fqf-fqds)-dl;     %--- Start Date to Forecasting
+        sd=periodicity*((fyf-fyds)+(fqf-fqds)/12)-dl;     %--- Start Date to Forecasting
         %nd=4*(lyf-fyf)+(lqf-fqf);          %--- End Date to Forecasting
         %--------------------------------------------------------------------------
+        %-------------------------Forecasting Period for Evaluating Models---------
         
         
         for i=1:nd%+horizon
@@ -188,12 +201,12 @@ for Tvarnameindx=1:length(Target_var_names)
         dum=Dummy(1:sd+i-1,:);
         %dum=zeros(size(Exp_Var,1),1);
         Target_=Target(1:sd-horizon-1+i,1);
-        Full_model(:,tt,Model_Count)=ARdirect(Target_,dum,OneStep,horizon);   Fin_Desc_Model(tt,Model_Count)={['ARdirect, Date, Upto, ' num2str(Date(sd+i)) ', Transfomation mod, ' Trans_mod{tt}]}; Model_Count=Model_Count+1;
-        Full_model(:,tt,Model_Count)=TAR(Target_,OneStep,horizon);            Fin_Desc_Model(tt,Model_Count)={['TAR, Date, Upto, ' num2str(Date(sd+i)) ', Transfomation mod, ' Trans_mod{tt}]}; Model_Count=Model_Count+1;
-        Full_model(:,tt,Model_Count)=UM(Target_,OneStep,horizon);            Fin_Desc_Model(tt,Model_Count)={['UM , Date, Upto, ' num2str(Date(sd+i)) ', Transfomation mod, ' Trans_mod{tt}]};   Model_Count=Model_Count+1;
-        Full_model(:,tt,Model_Count)=PureRW(Target_,OneStep,horizon);        Fin_Desc_Model(tt,Model_Count)={['PureRW, Date, Upto, ' num2str(Date(sd+i)) ', Transfomation mod, ' Trans_mod{tt}]};   Model_Count=Model_Count+1;
-        Full_model(:,tt,Model_Count)=RWDrift(Target_,OneStep,horizon);       Fin_Desc_Model(tt,Model_Count)={['RWDrift, Date, Upto, ' num2str(Date(sd+i)) ', Transfomation mod, ' Trans_mod{tt}]};   Model_Count=Model_Count+1;
-        Full_model(:,tt,Model_Count)=RWAO(Target_,OneStep,horizon);          Fin_Desc_Model(tt,Model_Count)={['RWAO, Date, Upto, ' num2str(Date(sd+i)) ', Transfomation mod, ' Trans_mod{tt}]};   Model_Count=Model_Count+1;
+        Full_model(:,tt,Model_Count)=ARdirect(Target_,dum,OneStep,horizon);   Fin_Desc_Model(tt,Model_Count)={['ARdirect, Trans:' Trans_mod{tt}]}; Model_Count=Model_Count+1;
+        Full_model(:,tt,Model_Count)=TAR(Target_,OneStep,horizon);            Fin_Desc_Model(tt,Model_Count)={['TAR, Trans:' Trans_mod{tt}]}; Model_Count=Model_Count+1;
+        Full_model(:,tt,Model_Count)=UM(Target_,OneStep,horizon);            Fin_Desc_Model(tt,Model_Count)={['UM , Trans:' Trans_mod{tt}]};   Model_Count=Model_Count+1;
+        Full_model(:,tt,Model_Count)=PureRW(Target_,OneStep,horizon);        Fin_Desc_Model(tt,Model_Count)={['PureRW, Trans:' Trans_mod{tt}]};   Model_Count=Model_Count+1;
+        Full_model(:,tt,Model_Count)=RWDrift(Target_,OneStep,horizon);       Fin_Desc_Model(tt,Model_Count)={['RWDrift, Trans:' Trans_mod{tt}]};   Model_Count=Model_Count+1;
+        Full_model(:,tt,Model_Count)=RWAO(Target_,OneStep,horizon);          Fin_Desc_Model(tt,Model_Count)={['RWAO, Trans:' Trans_mod{tt}]};   Model_Count=Model_Count+1;
         %-----------------------Multivariate Models----------------------------
         %-------------------------------ARDL-----------------------------------
         Exp_Var_=Exp_Var(1:sd-horizon-1+i,:);
@@ -205,7 +218,7 @@ for Tvarnameindx=1:length(Target_var_names)
         [~, CC]=size(Exp_Var_);
         %     Model_Count=6; % Counter of models
         for j=1:CC
-            Full_model(:,tt,Model_Count)=ARDL2(Target_,Exp_Var_(:,j),dum,OneStep, horizon); Fin_Desc_Model(tt,Model_Count)={['ARDL, Date, Upto, ' num2str(Date(sd+i)) ', Transfomation mod, ' Trans_mod{tt} ', Exo: ' Exp_Var_names{j}]};   Model_Count=Model_Count+1;
+            Full_model(:,tt,Model_Count)=ARDL2(Target_,Exp_Var_(:,j),dum,OneStep, horizon); Fin_Desc_Model(tt,Model_Count)={['ARDL, Trans:' Trans_mod{tt} ', Exo: ' Exp_Var_names{j}]};   Model_Count=Model_Count+1;
         end
         
         %-------------------------------VAR------------------------------------
@@ -219,13 +232,13 @@ for Tvarnameindx=1:length(Target_var_names)
             
             Yraw=[Target_(:,1), Exp_Var_(:,v(k,:))];
             %-----------------------------------VAR----------------------------
-            Full_model(:,tt,Model_Count)=BVAR(Yraw,dum,1,OneStep, horizon);       Fin_Desc_Model(tt,Model_Count)={['BVAR, Date, Upto, ' num2str(Date(sd+i)) ', Transfomation mod, ' Trans_mod{tt} ', Exo: ' Exp_Var_names{v(k,:)}]};   Model_Count=Model_Count+1;
+            Full_model(:,tt,Model_Count)=BVAR(Yraw,dum,1,OneStep, horizon);       Fin_Desc_Model(tt,Model_Count)={['BVAR, Trans:' Trans_mod{tt} ', Exo: ' Exp_Var_names{v(k,:)}]};   Model_Count=Model_Count+1;
             %----------------------------------TVP-VAR-------------------------
             
-            Full_model(:,tt,Model_Count)=TVPVAR(Yraw,1,OneStep, horizon);         Fin_Desc_Model(tt,Model_Count)={['TVPVAR, Date, Upto, ' num2str(Date(sd+i)) ', Transfomation mod, ' Trans_mod{tt} ', Exo: ' Exp_Var_names{v(k,:)}]};   Model_Count=Model_Count+1;
+            Full_model(:,tt,Model_Count)=TVPVAR(Yraw,1,OneStep, horizon);         Fin_Desc_Model(tt,Model_Count)={['TVPVAR, Trans:' Trans_mod{tt} ', Exo: ' Exp_Var_names{v(k,:)}]};   Model_Count=Model_Count+1;
             %---------------------------------ARXs-----------------------------
             
-            Full_model(:,tt,Model_Count)=ARXs(Yraw(:,1),Yraw(:,2:end),dum,OneStep, horizon);       Fin_Desc_Model(tt,Model_Count)={['TVPVAR, Date, Upto, ' num2str(Date(sd+i)) ', Transfomation mod, ' Trans_mod{tt} ', Exo: ' Exp_Var_names{v(k,:)}]};   Model_Count=Model_Count+1;
+            Full_model(:,tt,Model_Count)=ARXs(Yraw(:,1),Yraw(:,2:end),dum,OneStep, horizon);       Fin_Desc_Model(tt,Model_Count)={['TVPVAR, Trans:' Trans_mod{tt} ', Exo: ' Exp_Var_names{v(k,:)}]};   Model_Count=Model_Count+1;
             %---------------------------------ARXd-----------------------------
             %
             %         model(i,:,tt,Model_Count)=ARXd(dataset(:,1),dataset(:,v(k,:)),dum,4);
@@ -322,7 +335,9 @@ for Tvarnameindx=1:length(Target_var_names)
     % Date: Date
     Historical_Number=5;
     R_Full_model=reshape(Full_model,horizon,[]);
-    Result_Database=mat2dataset([repmat(Target_Level_X12(end-Historical_Number+1:end).',size(R_Full_model,2),1),R_Full_model.',RMSFE1_Total(:)],'varnames',{'L1', 'L2', 'L3' , 'L4', 'L5','H1', 'H2', 'H3' , 'H4', 'RMSEF' });
+    %Result_Database=mat2dataset([repmat(Target_Level_X12(end-Historical_Number+1:end).',size(R_Full_model,2),1),R_Full_model.',RMSFE1_Total(:)],'varnames',{'L1', 'L2', 'L3' , 'L4', 'L5','H1', 'H2', 'H3' , 'H4', 'RMSEF' });
+    Result_Database=mat2dataset([repmat(Target_Level_X12(end-Historical_Number+1:end).',size(R_Full_model,2),1),R_Full_model.',RMSFE1_Total(:)],...
+        'varnames',[ mat2cell(datestr(Date(end-4:end)),ones(5,1),11).',{'H1', 'H2', 'H3' , 'H4', 'RMSEF' }]);
     
     Result_Database.Descritption=Fin_Desc_Model(:);
     Result_Database = sortrows(Result_Database,'RMSEF','ascend');
@@ -336,14 +351,21 @@ for Tvarnameindx=1:length(Target_var_names)
     plot(mode(Fin_fore))
     plot(mean(Fin_fore))
     leg=cell(1,Top_count+2);
-    for ll=1:Top_count
-        leg{1,ll}=['#' num2str(ll)];
-    end
+    %     for ll=1:Top_count
+    %         leg{1,ll}=['#' num2str(ll)];
+    %     end
+    leg(1:Top_count)=Result_Database.Descritption(1:Top_count);
     leg{1,Top_count+1}='Mode';
     leg{1,Top_count+2}='Mean';
-    legend (leg);
-    title(['4 Horizon Forecadte of ' Target_var_name]);
+    legend (leg,'Location','northwest');
+    title(['4 Horizon Forecadte of ' Target_var_name ' __ From ' datestr(Date(end))]);
+    JmP=Date(end)-Date(end-1);
+    
+    ax=gca;
+    ax.XTickLabel =(datestr(Date(end-4):JmP:Date(end-4)+8*JmP,'yyyy-mmm'));
     hold off
+    saveas(gcf,['Output\Lev_' Target_var_name],'bmp');
+    % close gcf
     % Growth of target variable
     figure;
     %  plot(diff(log(R_Full_model)),'Color',[0.9,0.9,0.9])
@@ -353,15 +375,19 @@ for Tvarnameindx=1:length(Target_var_names)
     plot(mode(D_Fin_fore))
     plot(mean(D_Fin_fore))
     leg=cell(1,Top_count+2);
-    for ll=1:Top_count
-        leg{1,ll}=['#' num2str(ll)];
-    end
+    leg(1:Top_count)=Result_Database.Descritption(1:Top_count);
     leg{1,Top_count+1}='Mode';
     leg{1,Top_count+2}='Mean';
-    legend (leg);
-    title(['4 Horizon Forecadte of ' Target_var_name ' Growth']);
-    hold off
+    legend (leg,'Location','northwest');
+    title(['4 Horizon Forecadte of ' Target_var_name ' Growth __ From ' datestr(Date(end))]);
+    JmP=Date(end)-Date(end-1);
     
+    ax=gca;
+    ax.XTickLabel =(datestr(Date(end-4):JmP:Date(end-4)+8*JmP,'yyyy-mmm'));
+    hold off
+    saveas(gcf,['Output\Grt_' Target_var_name],'bmp');
+    % close gcf
+       
     forecast_Errors=sort(forecast_Errors);
     % ksdensity(forecast_Errors(forecast_Errors(500:end-500,2)==1,1))
     ksdensity(forecast_Errors(500:end-500))

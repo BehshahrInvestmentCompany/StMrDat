@@ -12,6 +12,7 @@ clc
 %****************************
 onestep=NaN;
 horizon=4;
+isPersianDate=0;
 % if isnan(onestep)==1
 %     OS=0;
 % else
@@ -19,7 +20,6 @@ horizon=4;
 % end
 %--- OS=0 if the last quarter is compelete
 OneStep=nan;% OneStep=NaN;
-Quarterly=0;
 % %---------------------Read Data from Excell file---------------------------
 % Target=xlsread('Input\Data_level.xlsx', 'Target');
 % Exp_Var=xlsread('Input\Data_level.xlsx', 'Exp_Var');
@@ -28,11 +28,11 @@ Quarterly=0;
 % Dummy=xlsread('Input\Data_level.xlsx', 'Dummy');
 Data=dataset('xls','Input\Mar.xlsx');%,'sheet','Data');
 Target_var_names={'CU'};%' 'oil' 'Al' 'Co' 'Or'};
-Dum_var_name={};%{'D1','D2'};
-periodical=Data.Date(1); % 4 for quarterly data and 12 for monthly and 1 for anual
+Dum_var_name={};%{'D1','D2'}; periodical=Data.Date(1); % 4 for quarterly data and 12 for monthly and 1 for anual
 nd=10; % Periods Count to find the best models
 %the first row is the transformations
 FRT=0;
+%%
 for Tvarnameindx=1:length(Target_var_names)
     Target_var_name=Target_var_names{Tvarnameindx};
     % ---------------------------------------------------
@@ -49,7 +49,6 @@ for Tvarnameindx=1:length(Target_var_names)
     Exp_Var=double(Data(:,~(Date_var_Pos+Target_var_Pos+Dum_var_Pos)));
     Exp_Var_names=Var_names(~(Date_var_Pos+Target_var_Pos+Dum_var_Pos));
     Date=double(Data(:,Date_var_Pos));
-    periodicity=12;%Date(1); % 4 for quarterly data and 12 for monthly and 1 for anual
     
     % dataset=[ Exp_Var_];
     C=length(Exp_Var_names);
@@ -63,11 +62,11 @@ for Tvarnameindx=1:length(Target_var_names)
         Exp_Var=Exp_Var(2:end,:);
         % F1=F1(2:end,2:end);
         % F2=F2(2:end,2:end);
+        periodicity=Date(1); % 4 for quarterly data and 12 for monthly and 1 for anual
         Dummy=Dummy(2:end,:);
         Date=Date(2:end);
-    end
-    
-    if FRT==0
+    elseif FRT==0
+        periodicity=12;
         T=410*ones(size(T));
     end
     %T is transformation row vector for data
@@ -96,26 +95,21 @@ for Tvarnameindx=1:length(Target_var_names)
     
     for tt=1:Tt2
         [Target, Exp_Var, Dummy,Date]=transformation(Target_Level_X12, Exp_Var, Dummy, T(tt,:),Date);
-        
+        if isPersianDate
+            Date=Cal_conv(Date,0);
+        end
         %-------------------------Sample Period------------------------------------
-        % fyds=fix(Date(1));    %--- First Year of Data Set
+        %--- First Year of Data Set
         fyds=str2double(datestr(Date(1),'yyyy'));
-        % if fyds>1300
-        %     fyds=fyds-1300;
-        % end
-        % fqds=round(10*(Date(1)-fix(Date(1))));     %--- First quarter of Data Set
-        fqds=str2double(datestr(Date(1),'mm'));    %--- First quarter of Data Set
-        %lyds=92;   %--- Last Year of Data Set
-        %lqds=3;    %--- Last Quarter of Date Set
-        %-------------------------Forecasting Period for Evaluating Models---------
-        
-        %   lyf=fix(Date(end));     %--- Last Year of Forecast
+        %--- First Month of Data Set
+        fqds=str2double(datestr(Date(1),'mm'));
+        %--- Last Year of Historical Data
         lyf=str2double(datestr(Date(end),'yyyy'));
-        % lqf=round(10*(Date(end)-fix(Date(end))));      %--- Last Quarter of Forecate
+        %--- Last Month of Historical Data
         lqf=str2double(datestr(Date(end),'mm'));
-        % fyf=lyf-fix(nd/periodicity);%1390;     %--- First Year of Forecasting
+        %--- First Year of Sampling
         fyf=str2double(datestr(Date(end)-nd*365/periodicity,'yyyy'));
-        %fqf=lqf-nd+periodicity*fix(nd/periodicity);      %--- First Quarter of Forecast
+        %--- First Month of Sampling
         fqf=str2double(datestr(Date(end)-nd*365/periodicity,'mm'));
         
         if fqf<=0
@@ -124,10 +118,10 @@ for Tvarnameindx=1:length(Target_var_names)
         end
         
         dl=0;%length(Date)-length(Target);  %--- Real Time and transformation %% idon know what is this
-        sd=periodicity*(fyf-fyds)+(fqf-fqds)-dl;     %--- Start Date to Forecasting
+        sd=periodicity*((fyf-fyds)+(fqf-fqds)/12)-dl;        %--- Start Date to Forecasting
         %nd=4*(lyf-fyf)+(lqf-fqf);          %--- End Date to Forecasting
         %--------------------------------------------------------------------------
-        
+        %-------------------------Forecasting Period for Evaluating Models---------
         
         for i=1:nd%+horizon
             Model_Count=1;

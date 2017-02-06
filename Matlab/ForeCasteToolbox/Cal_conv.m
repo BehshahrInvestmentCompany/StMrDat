@@ -1,23 +1,28 @@
-function Cal_conv(A,p)
+function d=Cal_conv(A,M)
 % convert Farsi Cal to Georgian
-% A is string like 69.1
-% p is 4 or 12
-fyds=fix(Date(1));    %--- First Year of Data Set
-if fyds>1300
-    fyds=fyds-1300;
+% A is string like 69.12: after point is tne month
+% p is 4 or 12 is not need
+% M is Boolean: M==0 means from Persian To Georgian
+fyds=fix(A);    %--- First Year of Data Set
+if ~exist('M','var')
+    M=0;
 end
-fqds=round(10*(Date(1)-fix(Date(1))));
-
-if p==4
-    fqds=fqds-1;
-    if fqds<1
+if M==0
+    if fyds<1300
+        fyds=fyds+1300;
+    end
+    fqds=round(100*(A-fix(A)));
+    fqds=fqds+3;
+    
+    if fqds>12
         fyds=fyds+1;
+        fqds=fqds-12;
     end
     fyds=fyds+621;
-    datenum(fyds,fqds*3)
-elseif p==12
+    d=datenum(fyds,fqds,28);
+else % M==1
+    
     
 end
-
 
 end
