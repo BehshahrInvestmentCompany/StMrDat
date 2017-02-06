@@ -21,6 +21,16 @@ if M==0
     fyds=fyds+621;
     d=datenum(fyds,fqds,28);
 else % M==1
+    fyds=str2double(datestr(A,'yyyy'));
+    fyds=fyds+621;
+    %--- First Month of Data Set
+    fqds=str2double(datestr(A,'mm'));
+    fqds=fqds-3;
+    if fqds<0
+        fyds=fyds-1;
+        fqds=fqds+12;
+    end
+    
     
     
 end

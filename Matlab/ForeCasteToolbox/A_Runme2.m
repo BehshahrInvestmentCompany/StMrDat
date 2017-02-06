@@ -69,6 +69,9 @@ for Tvarnameindx=1:length(Target_var_names)
         periodicity=12;
         T=410*ones(size(T));
     end
+    if isPersianDate
+        Date_=Cal_conv(Date,0);
+    end
     %T is transformation row vector for data
     %so that [0 1 2 3 4 5]=[no change, Ln, Diff, Double Diff, Diff_Ln, Double Diff_Ln]
     Trans_mod={'no\_change', 'Ln', 'Diff', 'Double\_Diff', 'Diff\_Ln', 'Double\_Diff\_Ln'};
@@ -83,21 +86,19 @@ for Tvarnameindx=1:length(Target_var_names)
     T=temp_;
     clear temp_
     
-    [Target, Exp_Var, Dummy,Date]=Real_time(Target, Exp_Var, Dummy,Date);
+    [Target, Exp_Var, Dummy,Date_]=Real_time(Target, Exp_Var, Dummy,Date_);
     
-    [Target_Level_X12, Exp_Var]=deseasonal(Target, Exp_Var,Date,periodicity);
+    [Target_Level_X12, Exp_Var]=deseasonal(Target, Exp_Var,Date_,periodicity);
     
     %% Simulate for Model Selection
     model=nan(nd,horizon,Tt2,500); % Each model Forcats+horizon
     Desc_Model=cell(nd,Tt2,500);%+horizon
     Full_model=nan(horizon,tt,500); % Fulll Samples
     Fin_Desc_Model=cell(tt,500);
-    
+
     for tt=1:Tt2
-        [Target, Exp_Var, Dummy,Date]=transformation(Target_Level_X12, Exp_Var, Dummy, T(tt,:),Date);
-        if isPersianDate
-            Date=Cal_conv(Date,0);
-        end
+        %tt=2
+        [Target, Exp_Var, Dummy,Date]=transformation(Target_Level_X12, Exp_Var, Dummy, T(tt,:),Date_);
         %-------------------------Sample Period------------------------------------
         %--- First Year of Data Set
         fyds=str2double(datestr(Date(1),'yyyy'));
@@ -111,12 +112,6 @@ for Tvarnameindx=1:length(Target_var_names)
         fyf=str2double(datestr(Date(end)-nd*365/periodicity,'yyyy'));
         %--- First Month of Sampling
         fqf=str2double(datestr(Date(end)-nd*365/periodicity,'mm'));
-        
-        if fqf<=0
-            fyf=fyf-1;
-            fqf=fqf+periodicity;
-        end
-        
         dl=0;%length(Date)-length(Target);  %--- Real Time and transformation %% idon know what is this
         sd=periodicity*((fyf-fyds)+(fqf-fqds)/12)-dl;     %--- Start Date to Forecasting
         %nd=4*(lyf-fyf)+(lqf-fqf);          %--- End Date to Forecasting
@@ -134,7 +129,6 @@ for Tvarnameindx=1:length(Target_var_names)
             dum=Dummy(1:sd+i-1,:);
             %dum=zeros(size(Exp_Var,1),1);
             Target_=Target(1:sd-horizon-1+i,1);
-            
             model(i,:,tt,Model_Count)=ARdirect(Target_,dum,OneStep,horizon);   Desc_Model(i,tt,Model_Count)={['ARdirect, Date, Upto, ' num2str(Date(sd+i)) ', Transfomation mod,' Trans_mod{tt}]};         Model_Count=Model_Count+1;
             model(i,:,tt,Model_Count)=TAR(Target_,OneStep,horizon);            Desc_Model(i,tt,Model_Count)={['TAR, Date, Upto, ' num2str(Date(sd+i)) ', Transfomation mod, ' Trans_mod{tt}]};              Model_Count=Model_Count+1;
             model(i,:,tt,Model_Count)=UM(Target_,OneStep,horizon);             Desc_Model(i,tt,Model_Count)={['UM , Date, Upto, ' num2str(Date(sd+i)) ', Transfomation mod, ' Trans_mod{tt}]};              Model_Count=Model_Count+1;
@@ -387,7 +381,7 @@ for Tvarnameindx=1:length(Target_var_names)
     hold off
     saveas(gcf,['Output\Grt_' Target_var_name],'bmp');
     % close gcf
-       
+    
     forecast_Errors=sort(forecast_Errors);
     % ksdensity(forecast_Errors(forecast_Errors(500:end-500,2)==1,1))
     ksdensity(forecast_Errors(500:end-500))
