@@ -1,10 +1,13 @@
 #install.packages("rvest") "html_table"
 library("rvest")
 library("htmlTable")
-
+library("xml2")
+#required()
 #URL of the HTML webpage we want to scrape
 url="http://www.fia.com/events/formula-1-world-championship/season-2015/qualifying-classification"
-
+url="http://codal.ir/Reports/InterimStatement.aspx?LetterSerial=%2fBQF%2fD1lTiE4SpUJiWLw4g%3d%3d"
+url="http://codal.ir/Reports/Decision.aspx?LetterSerial=%2fBQF%2fD1lTiE4SpUJiWLw4g%3d%3d&rt=0&let=6"
+num=2
 fiaTableGrabber=function(url,num){
   #Grab the page
   # hh=html(url)
@@ -12,7 +15,7 @@ fiaTableGrabber=function(url,num){
   #Parse HTML
   #cc=html_nodes(hh, xpath = "//table")[[num]] 
   #html_table(fill=TRUE)
-  CC<-html_table(html_nodes(hh, xpath = "//table")[[num]] ,fill=TRUE)
+  cc<-html_table(html_nodes(hh, xpath = "//table")[[num]] ,fill=TRUE)
   #TO DO - extract table name
   
   #Set the column names
