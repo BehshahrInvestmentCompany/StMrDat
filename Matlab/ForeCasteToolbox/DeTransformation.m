@@ -15,10 +15,10 @@ for i=1:N
     elseif Tr(1,i)==1
         data_trans(1:T,i)=exp(data_adj(1:T,i));
     elseif Tr(1,i)==2
-        data_adj(1,:)=data_adj(1,:)+Base_value;
-        data_trans(2:T,i)=cumsum(data_adj(1:T,i));
+        data_trans(1:T,i)=cumsum(data_adj(1:T,i));
+        data_trans(:,i)=data_trans+Base_value*ones(size(data_trans));
     elseif Tr(1,i)==3
-        data_trans(3:T,i)=cumsum(cumsum(data_adj(1:T,i)));
+        data_trans(1:T,i)=cumsum(cumsum(data_adj(1:T,i)));
         data_trans=data_adj+Base_value*ones(size(data_trans));
     elseif Tr(1,i)==4
         Base_value=log(Base_value);

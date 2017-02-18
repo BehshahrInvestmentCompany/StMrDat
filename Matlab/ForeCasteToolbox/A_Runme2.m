@@ -1,4 +1,4 @@
-
+% [$-ar-SA,300]#,##0
 %{
 f=fullfile(cd,'\IRIS_Tbx');
 addpath(f)
@@ -27,7 +27,7 @@ OneStep=nan;% OneStep=NaN;
 % % F2=xlsread('Data_level.xlsx', 'F2');
 % Dummy=xlsread('Input\Data_level.xlsx', 'Dummy');
 Data=dataset('xls','Input\Data.xlsx','sheet','Data');
-Target_var_names={'CPI' , 'Gold' , 'USD'  , 'SI'};
+Target_var_names={'CPI' , 'Gold' , 'USD'  , 'SI','GDP'};
 Dum_var_name={'D1','D2'};
 nd=20; % Periods to find the best models
 %the first row is the transformations
@@ -86,9 +86,9 @@ for Tvarnameindx=1:length(Target_var_names)
     T=temp_;
     clear temp_
     
-    [Target, Exp_Var, Dummy,Date_]=Real_time(Target, Exp_Var, Dummy,Date_);
+    [Target, Exp_Var, Dummy_,Date_]=Real_time(Target, Exp_Var, Dummy,Date_);
     
-    [Target_Level_X12, Exp_Var]=deseasonal(Target, Exp_Var,Date_,periodicity);
+    [Target_Level_X12, Exp_Var_B]=deseasonal(Target, Exp_Var,Date_,periodicity);
     
     %% Simulate for Model Selection
     model=nan(nd,horizon,Tt2,500); % Each model Forcats+horizon
@@ -98,7 +98,7 @@ for Tvarnameindx=1:length(Target_var_names)
 
     for tt=1:Tt2
         %tt=2
-        [Target, Exp_Var, Dummy,Date]=transformation(Target_Level_X12, Exp_Var, Dummy, T(tt,:),Date_);
+        [Target, Exp_Var, Dummy,Date]=transformation(Target_Level_X12, Exp_Var_B, Dummy_, T(tt,:),Date_);
         %-------------------------Sample Period------------------------------------
         %--- First Year of Data Set
         fyds=str2double(datestr(Date(1),'yyyy'));
@@ -352,12 +352,15 @@ for Tvarnameindx=1:length(Target_var_names)
     leg{1,Top_count+1}='Mode';
     leg{1,Top_count+2}='Mean';
     legend (leg,'Location','northwest');
-    title(['4 Horizon Forecadte of ' Target_var_name ' __ From ' datestr(Date(end))]);
+    title(['4 Horizon Forecaste of ' Target_var_name ' __ From ' datestr(Date(end))]);
     JmP=Date(end)-Date(end-1);
     
     ax=gca;
     ax.XTickLabel =(datestr(Date(end-4):JmP:Date(end-4)+8*JmP,'yyyy-mmm'));
     hold off
+    if ~exist('Output','dir')
+        mkdir('Output')
+    end
     saveas(gcf,['Output\Lev_' Target_var_name],'bmp');
     % close gcf
     % Growth of target variable
@@ -373,7 +376,7 @@ for Tvarnameindx=1:length(Target_var_names)
     leg{1,Top_count+1}='Mode';
     leg{1,Top_count+2}='Mean';
     legend (leg,'Location','northwest');
-    title(['4 Horizon Forecadte of ' Target_var_name ' Growth __ From ' datestr(Date(end))]);
+    title(['4 Horizon Forecaste of ' Target_var_name ' Growth __ From ' datestr(Date(end),'yy-mmm')]);
     JmP=Date(end)-Date(end-1);
     
     ax=gca;
@@ -382,10 +385,10 @@ for Tvarnameindx=1:length(Target_var_names)
     saveas(gcf,['Output\Grt_' Target_var_name],'bmp');
     % close gcf
     
-    forecast_Errors=sort(forecast_Errors);
+   % forecast_Errors=sort(forecast_Errors);
     % ksdensity(forecast_Errors(forecast_Errors(500:end-500,2)==1,1))
-    ksdensity(forecast_Errors(500:end-500))
-    title('Forecaste Error Distribution');
+   % ksdensity(forecast_Errors(500:end-500))
+   % title('Forecaste Error Distribution');
     save(['Output\' Target_var_name '.mat']);
     export(Result_Database,'xlsfile',['Output\' Target_var_name '.xlsx']);
 end

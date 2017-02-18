@@ -27,7 +27,7 @@ OneStep=nan;% OneStep=NaN;
 % % F2=xlsread('Data_level.xlsx', 'F2');
 % Dummy=xlsread('Input\Data_level.xlsx', 'Dummy');
 Data=dataset('xls','Input\Mar.xlsx');%,'sheet','Data');
-Target_var_names={'CU'};%' 'oil' 'Al' 'Co' 'Or'};
+Target_var_names={'CU'};% 'oil' 'Al' 'Co' 'Or'};
 Dum_var_name={};%{'D1','D2'}; periodical=Data.Date(1); % 4 for quarterly data and 12 for monthly and 1 for anual
 nd=10; % Periods Count to find the best models
 %the first row is the transformations
@@ -83,9 +83,9 @@ for Tvarnameindx=1:length(Target_var_names)
     T=temp_;
     clear temp_
     
-    [Target, Exp_Var, Dummy,Date]=Real_time(Target, Exp_Var, Dummy,Date);
+    [Target, Exp_Var, Dummy_,Date_]=Real_time(Target, Exp_Var, Dummy,Date);
     
-    [Target_Level_X12, Exp_Var]=deseasonal(Target, Exp_Var,Date,periodicity);
+    [Target_Level_X12, Exp_Var_B]=deseasonal(Target, Exp_Var,Date_,periodicity);
     
     %% Simulate for Model Selection
     model=nan(nd,horizon,Tt2,500); % Each model Forcats+horizon
@@ -94,7 +94,7 @@ for Tvarnameindx=1:length(Target_var_names)
     Fin_Desc_Model=cell(tt,500);
     
     for tt=1:Tt2
-        [Target, Exp_Var, Dummy,Date]=transformation(Target_Level_X12, Exp_Var, Dummy, T(tt,:),Date);
+[Target, Exp_Var, Dummy,Date]=transformation(Target_Level_X12, Exp_Var_B, Dummy_, T(tt,:),Date_);
         if isPersianDate
             Date=Cal_conv(Date,0);
         end
