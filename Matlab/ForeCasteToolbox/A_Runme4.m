@@ -1,4 +1,4 @@
-% [$-ar-SA,300]#,##0
+% [$-fa-IR,300]#,##0
 %{
 f=fullfile(cd,'\IRIS_Tbx');
 addpath(f)
@@ -9,30 +9,32 @@ irisstartup
 % Modified By P.Davoudi: Pedram.Davoudi@gmail.com
 clear
 clc
+Irann=1;
+JustAr=1;
 %****************************
-onestep=NaN;
-horizon=4;
-isPersianDate=1;
-% if isnan(onestep)==1
-%     OS=0;
-% else
-%     OS=1;
-% end
-%--- OS=0 if the last quarter is compelete
-OneStep=nan;% OneStep=NaN;
-% %---------------------Read Data from Excell file---------------------------
-% Target=xlsread('Input\Data_level.xlsx', 'Target');
-% Exp_Var=xlsread('Input\Data_level.xlsx', 'Exp_Var');
-% % F1=xlsread('Data_level.xlsx', 'F1');
-% % F2=xlsread('Data_level.xlsx', 'F2');
-% Dummy=xlsread('Input\Data_level.xlsx', 'Dummy');
-Data=dataset('xls','Input\Data.xlsx','sheet','Data');
-Target_var_names={'CPI','Gold','USD','SI','GDP'};
-Dum_var_name={'D1','D2'};
-nd=20; % Periods to find the best models
-%the first row is the transformations
-FRT=1;
-%%
+onestep=NaN; % Idont know it
+OneStep=nan; % Idont know it
+horizon=4; % Forecast Horizon
+if Irann==1
+    isPersianDate=1;
+    % %---------------------Read Data from Excell file---------------------------
+    Data=dataset('xls','Input\Data.xlsx','sheet','Data');
+    Target_var_names={'CPI'};%:,'Gold','USD','SI','GDP'};
+    Dum_var_name={'D1','D2'};
+    nd=20; % Periods to find the best models
+    %the first row is the transformations
+    FRT=1;
+    %%
+else % Commodities
+    isPersianDate=0;
+    % %---------------------Read Data from Excell file---------------------------
+    Data=dataset('xls','Input\Mar.xlsx');%,'sheet','Data');
+    Target_var_names={'CU'};% 'oil' 'Al' 'Co' 'Or'};
+    Dum_var_name={};%{'D1','D2'}; periodical=Data.Date(1); % 4 for quarterly data and 12 for monthly and 1 for anual
+    nd=10; % Periods to find the best models
+    %the first row is the transformations
+    FRT=1;
+end
 for Tvarnameindx=1:length(Target_var_names)
     Target_var_name=Target_var_names{Tvarnameindx};
     % ---------------------------------------------------
@@ -66,6 +68,7 @@ for Tvarnameindx=1:length(Target_var_names)
         Dummy_Orig=Dummy(2:end,:);
         Date=Date(2:end);
     elseif FRT==0
+        Dummy_Orig=Dummy(1:end,:);
         periodicity=12;
         T=410*ones(size(T));
     end
@@ -139,46 +142,47 @@ for Tvarnameindx=1:length(Target_var_names)
             model(i,:,tt,Model_Count)=RWDrift(Target_,OneStep,horizon);        Desc_Model(i,tt,Model_Count)={['RWDrift, Date, Upto, ' num2str(Date(sd+i)) ', Transfomation mod, ' Trans_mod{tt}]};          Model_Count=Model_Count+1;
             model(i,:,tt,Model_Count)=RWAO(Target_,OneStep,horizon);           Desc_Model(i,tt,Model_Count)={['RWAO, Date, Upto, ' num2str(Date(sd+i)) ', Transfomation mod, ' Trans_mod{tt}]};             Model_Count=Model_Count+1;
             %-----------------------Multivariate Models----------------------------
-            %-------------------------------ARDL-----------------------------------
-            Exp_Var_=Exp_Var(1:sd-horizon-1+i,:);
-            
-            %     [~,~, ~, ~, f_F1]=factoran(F1(1:sd-horizon-1+i,:), 3);
-            %     [~,~, ~, ~, f_F2]=factoran(F2(1:sd-horizon-1+i,:), 2);
-            
-            %     Exp_Var_=[Exp_Var_];
-            [~, CC]=size(Exp_Var_);
-            %     Model_Count=6; % Counter of models
-            for j=1:CC
-                model(i,:,tt,Model_Count)=ARDL2(Target_,Exp_Var_(:,j),dum,OneStep, horizon); Desc_Model(i,tt,Model_Count)={['ARDL, Date, Upto, ' num2str(Date(sd+i)) ', Transfomation mod, ' Trans_mod{tt} ', Exo: ' Exp_Var_names{j}]};         Model_Count=Model_Count+1;
+            if JustAr==0
+                %-------------------------------ARDL-----------------------------------
+                Exp_Var_=Exp_Var(1:sd-horizon-1+i,:);
+                
+                %     [~,~, ~, ~, f_F1]=factoran(F1(1:sd-horizon-1+i,:), 3);
+                %     [~,~, ~, ~, f_F2]=factoran(F2(1:sd-horizon-1+i,:), 2);
+                
+                %     Exp_Var_=[Exp_Var_];
+                [~, CC]=size(Exp_Var_);
+                %     Model_Count=6; % Counter of models
+                for j=1:CC
+                    model(i,:,tt,Model_Count)=ARDL2(Target_,Exp_Var_(:,j),dum,OneStep, horizon); Desc_Model(i,tt,Model_Count)={['ARDL, Date, Upto, ' num2str(Date(sd+i)) ', Transfomation mod, ' Trans_mod{tt} ', Exo: ' Exp_Var_names{j}]};         Model_Count=Model_Count+1;
+                end
+                
+                %-------------------------------VAR------------------------------------
+                %dataset=[Target_, Exp_Var_];
+                
+                
+                for k=1:size(v,1);
+                    
+                    Yraw=[Target_, Exp_Var_(:,v(k,:))];
+                    %-----------------------------------VAR----------------------------
+                    model(i,:,tt,Model_Count)=BVAR(Yraw,dum,1,OneStep, horizon);
+                    %        [ i,tt,Model_Count]
+                    Desc_Model(i,tt,Model_Count)={['BVAR, Date, Upto, ' num2str(Date(sd+i)) ', Transfomation mod, ' Trans_mod{tt} ', Exo: ' Exp_Var_names{v(k,:)}]};
+                    Model_Count=Model_Count+1;
+                    %----------------------------------TVP-VAR-------------------------
+                    
+                    model(i,:,tt,Model_Count)=TVPVAR(Yraw,1,OneStep, horizon);                Desc_Model(i,tt,Model_Count)={['TVPVAR, Date, Upto, ' num2str(Date(sd+i)) ', Transfomation mod, ' Trans_mod{tt} ', Exo: ' Exp_Var_names{v(k,:)}]};         Model_Count=Model_Count+1;
+                    %---------------------------------ARXs-----------------------------
+                    
+                    model(i,:,tt,Model_Count)=ARXs(Yraw(:,1),Yraw(:,2:end),dum,OneStep, horizon);     Desc_Model(i,tt,Model_Count)={['TVPVAR, Date, Upto, ' num2str(Date(sd+i)) ', Transfomation mod, ' Trans_mod{tt} ', Exo: ' Exp_Var_names{v(k,:)}]};         Model_Count=Model_Count+1;
+                    %---------------------------------ARXd-----------------------------
+                    %
+                    %         model(i,:,tt,Model_Count)=ARXd(dataset(:,1),dataset(:,v(k,:)),dum,4);
+                    %---------------------------------ARMAXs---------------------------
+                    %
+                    %         model(i,:,tt,Model_Count)=ARMAXs(dataset(:,1),dataset(:,v(k,:)),dum,4,4);
+                end
+                %----------------------------------------------------------------------
             end
-            
-            %-------------------------------VAR------------------------------------
-            %dataset=[Target_, Exp_Var_];
-            
-            
-            for k=1:size(v,1);
-                
-                Yraw=[Target_, Exp_Var_(:,v(k,:))];
-                %-----------------------------------VAR----------------------------
-                model(i,:,tt,Model_Count)=BVAR(Yraw,dum,1,OneStep, horizon);
-                %        [ i,tt,Model_Count]
-                Desc_Model(i,tt,Model_Count)={['BVAR, Date, Upto, ' num2str(Date(sd+i)) ', Transfomation mod, ' Trans_mod{tt} ', Exo: ' Exp_Var_names{v(k,:)}]};
-                Model_Count=Model_Count+1;
-                %----------------------------------TVP-VAR-------------------------
-                
-                model(i,:,tt,Model_Count)=TVPVAR(Yraw,1,OneStep, horizon);                Desc_Model(i,tt,Model_Count)={['TVPVAR, Date, Upto, ' num2str(Date(sd+i)) ', Transfomation mod, ' Trans_mod{tt} ', Exo: ' Exp_Var_names{v(k,:)}]};         Model_Count=Model_Count+1;
-                %---------------------------------ARXs-----------------------------
-                
-                model(i,:,tt,Model_Count)=ARXs(Yraw(:,1),Yraw(:,2:end),dum,OneStep, horizon);     Desc_Model(i,tt,Model_Count)={['TVPVAR, Date, Upto, ' num2str(Date(sd+i)) ', Transfomation mod, ' Trans_mod{tt} ', Exo: ' Exp_Var_names{v(k,:)}]};         Model_Count=Model_Count+1;
-                %---------------------------------ARXd-----------------------------
-                %
-                %         model(i,:,tt,Model_Count)=ARXd(dataset(:,1),dataset(:,v(k,:)),dum,4);
-                %---------------------------------ARMAXs---------------------------
-                %
-                %         model(i,:,tt,Model_Count)=ARMAXs(dataset(:,1),dataset(:,v(k,:)),dum,4,4);
-            end
-            %----------------------------------------------------------------------
-            
             %     disp(i)
             tim=toc;
             %     round(tim*(nd+horizon-i));
@@ -207,46 +211,47 @@ for Tvarnameindx=1:length(Target_var_names)
         Full_model(:,tt,Model_Count)=RWDrift(Target_,OneStep,horizon);       Fin_Desc_Model(tt,Model_Count)={['RWDrift, Trans:' Trans_mod{tt}]};   Model_Count=Model_Count+1;
         Full_model(:,tt,Model_Count)=RWAO(Target_,OneStep,horizon);          Fin_Desc_Model(tt,Model_Count)={['RWAO, Trans:' Trans_mod{tt}]};   Model_Count=Model_Count+1;
         %-----------------------Multivariate Models----------------------------
-        %-------------------------------ARDL-----------------------------------
-        %  Exp_Var_=Exp_Var(1:sd-horizon-1+i,:);
-        Exp_Var_=Exp_Var;
-        %     [~,~, ~, ~, f_F1]=factoran(F1(1:sd-horizon-1+i,:), 3);
-        %     [~,~, ~, ~, f_F2]=factoran(F2(1:sd-horizon-1+i,:), 2);
-        
-        %     Exp_Var_=[Exp_Var_];
-        [~, CC]=size(Exp_Var_);
-        %     Model_Count=6; % Counter of models
-        for j=1:CC
-            Full_model(:,tt,Model_Count)=ARDL2(Target_,Exp_Var_(:,j),dum,OneStep, horizon); Fin_Desc_Model(tt,Model_Count)={['ARDL, Trans:' Trans_mod{tt} ', Exo: ' Exp_Var_names{j}]};   Model_Count=Model_Count+1;
+        if JustAr==0
+            %-------------------------------ARDL-----------------------------------
+            %  Exp_Var_=Exp_Var(1:sd-horizon-1+i,:);
+            Exp_Var_=Exp_Var;
+            %     [~,~, ~, ~, f_F1]=factoran(F1(1:sd-horizon-1+i,:), 3);
+            %     [~,~, ~, ~, f_F2]=factoran(F2(1:sd-horizon-1+i,:), 2);
+            
+            %     Exp_Var_=[Exp_Var_];
+            [~, CC]=size(Exp_Var_);
+            %     Model_Count=6; % Counter of models
+            for j=1:CC
+                Full_model(:,tt,Model_Count)=ARDL2(Target_,Exp_Var_(:,j),dum,OneStep, horizon); Fin_Desc_Model(tt,Model_Count)={['ARDL, Trans:' Trans_mod{tt} ', Exo: ' Exp_Var_names{j}]};   Model_Count=Model_Count+1;
+            end
+            
+            %-------------------------------VAR------------------------------------
+            %dataset=[ Exp_Var_]; %Target_,
+            
+            % [R,C]=size(dataset);
+            %nv=3;                 %%% number of variable in the model %%%
+            %v=nchoosek(1:C,nv);
+            
+            for k=1:size(v,1);
+                
+                Yraw=[Target_(:,1), Exp_Var_(:,v(k,:))];
+                %-----------------------------------VAR----------------------------
+                Full_model(:,tt,Model_Count)=BVAR(Yraw,dum,1,OneStep, horizon);       Fin_Desc_Model(tt,Model_Count)={['BVAR, Trans:' Trans_mod{tt} ', Exo: ' Exp_Var_names{v(k,:)}]};   Model_Count=Model_Count+1;
+                %----------------------------------TVP-VAR-------------------------
+                
+                Full_model(:,tt,Model_Count)=TVPVAR(Yraw,1,OneStep, horizon);         Fin_Desc_Model(tt,Model_Count)={['TVPVAR, Trans:' Trans_mod{tt} ', Exo: ' Exp_Var_names{v(k,:)}]};   Model_Count=Model_Count+1;
+                %---------------------------------ARXs-----------------------------
+                
+                Full_model(:,tt,Model_Count)=ARXs(Yraw(:,1),Yraw(:,2:end),dum,OneStep, horizon);       Fin_Desc_Model(tt,Model_Count)={['TVPVAR, Trans:' Trans_mod{tt} ', Exo: ' Exp_Var_names{v(k,:)}]};   Model_Count=Model_Count+1;
+                %---------------------------------ARXd-----------------------------
+                %
+                %         model(i,:,tt,Model_Count)=ARXd(dataset(:,1),dataset(:,v(k,:)),dum,4);
+                %---------------------------------ARMAXs---------------------------
+                %
+                %         model(i,:,tt,Model_Count)=ARMAXs(dataset(:,1),dataset(:,v(k,:)),dum,4,4);
+            end
+            %----------------------------------------------------------------------
         end
-        
-        %-------------------------------VAR------------------------------------
-        %dataset=[ Exp_Var_]; %Target_,
-        
-        % [R,C]=size(dataset);
-        %nv=3;                 %%% number of variable in the model %%%
-        %v=nchoosek(1:C,nv);
-        
-        for k=1:size(v,1);
-            
-            Yraw=[Target_(:,1), Exp_Var_(:,v(k,:))];
-            %-----------------------------------VAR----------------------------
-            Full_model(:,tt,Model_Count)=BVAR(Yraw,dum,1,OneStep, horizon);       Fin_Desc_Model(tt,Model_Count)={['BVAR, Trans:' Trans_mod{tt} ', Exo: ' Exp_Var_names{v(k,:)}]};   Model_Count=Model_Count+1;
-            %----------------------------------TVP-VAR-------------------------
-            
-            Full_model(:,tt,Model_Count)=TVPVAR(Yraw,1,OneStep, horizon);         Fin_Desc_Model(tt,Model_Count)={['TVPVAR, Trans:' Trans_mod{tt} ', Exo: ' Exp_Var_names{v(k,:)}]};   Model_Count=Model_Count+1;
-            %---------------------------------ARXs-----------------------------
-            
-            Full_model(:,tt,Model_Count)=ARXs(Yraw(:,1),Yraw(:,2:end),dum,OneStep, horizon);       Fin_Desc_Model(tt,Model_Count)={['TVPVAR, Trans:' Trans_mod{tt} ', Exo: ' Exp_Var_names{v(k,:)}]};   Model_Count=Model_Count+1;
-            %---------------------------------ARXd-----------------------------
-            %
-            %         model(i,:,tt,Model_Count)=ARXd(dataset(:,1),dataset(:,v(k,:)),dum,4);
-            %---------------------------------ARMAXs---------------------------
-            %
-            %         model(i,:,tt,Model_Count)=ARMAXs(dataset(:,1),dataset(:,v(k,:)),dum,4,4);
-        end
-        %----------------------------------------------------------------------
-        
     end
     %%
     %  Fin_Desc_Model(:,1,:)=[]; % remove extra
@@ -342,7 +347,11 @@ for Tvarnameindx=1:length(Target_var_names)
     Top_count=5;
     figure;
     plot(R_Full_model,'Color',[0.9,0.9,0.9])
-    Fin_fore=double(Result_Database(1:fix(Model_Count/10),1:Historical_Number+horizon));
+    if fix(Model_Count/10)>5
+        Fin_fore=double(Result_Database(1:fix(Model_Count/10),1:Historical_Number+horizon));
+    else
+        Fin_fore=double(Result_Database(1:fix(Model_Count),1:Historical_Number+horizon));
+    end
     plot(Fin_fore(1:Top_count,:).')
     hold on
     plot(mode(Fin_fore))
@@ -395,75 +404,3 @@ for Tvarnameindx=1:length(Target_var_names)
     save(['Output\' Target_var_name '.mat']);
     export(Result_Database,'xlsfile',['Output\' Target_var_name '.xlsx']);
 end
-
-%%
-%{
-%---------------------Foracast Combination(Simple average)-----------------
-for i=1:horizon
-    l(i,1)=1;
-    for k=1:Model_Count
-        if RMSFE1(i,k)<=RMSFE1(i,1)
-            psedu_outofsample_comb(:,i,l(i,1))=psedu_outofsample(:,i,k);
-            outofsample_comb(i,l(i,1))=outofsample(i,k);
-            l(i,1)=l(i,1)+1;
-        end
-    end
-end
-
-for i=1:horizon
-    psedu_outofsample_combination(:,i)=mean(psedu_outofsample_comb(:,i,1:l(i,1)-1),3);
-    outofsample_combination(i,1)=mean(outofsample_comb(i,1:l(i,1)-1),2);
-end
-
-
-for i=1:horizon
-    RMSFE_comb(i,1)=RMSFE(actual, psedu_outofsample_combination(:,i));
-end
-%}
-%{
-% Output Decription
-% actual: Observed Data
-% model: (nd+horizon,horizon,300); % Each model Forcats
-% Desc_Model:cell(nd+horizon,300); % Describe  eache model
-% RMSFE1:nan(horizon,Model_Count);% RMSE of Eache model
-% psedu_outofsample_combination: % best Out of sample Forcast
-% outofsample_combination:
-% Date: Date
-Output=nan(nd+horizon,Model_Count*nd);
-r=0;
-for i=1:size(model,3)
-    for j=1:size(model,1)
-        r=r+1;
-        Output(j:j+horizon-1,r)=squeeze(model(j,:,i));
-    end
-end
-
-actual=[Target(sd+1:sd+nd);nan(horizon,1)];
-Actual_date=[Date(sd+1:sd+nd);nan(horizon,1)];
-for i=1:horizon
-     Actual_date(nd+i)=Actual_date(nd+i-1)+0.01;
-     if Actual_date(nd+i)-fix(Actual_date(nd+i))>0.115
-         Actual_date(nd+i)=fix(Actual_date(nd+i))+1;
-     end
-end
-% mode of Forcast
-%M0 = mode(Output,2);
-M1 = mean(Output,2,'omitnan');
-M2=[nan(nd,1);forecast_bestmodel];
-Output1=[Actual_date,actual,M1];
-%}
-%----------------Writting forecast of best and combined model to plot fanchart---------
-%{
-xlswrite('Result.xlsx', 100*forecast_bestmodel, 'Bestmodel', 'B12:B15');
-xlswrite('Result.xlsx', 100*min_RMSFE, 'Bestmodel', 'D12:D15');
-
-xlswrite('Result.xlsx', 100*outofsample_combination, 'Combination', 'B7:B10');
-xlswrite('Result.xlsx', 100*RMSFE_comb, 'Combination', 'D7:D10');
-
-xlswrite('Result.xlsx', Date(end-13:end), 'Calculation', 'a2:a15');
-xlswrite('Result.xlsx', 100*Target(end-9:end), 'Calculation', 'b2:b11');
-xlswrite('Result.xlsx', Target_Level_X12(end-9:end), 'Calculation', 'c2:c11');
-
-%----------------Writting forecast of best and combined model to plot fanchart---------
-
-%}

@@ -63,11 +63,18 @@ for Tvarnameindx=1:length(Target_var_names)
         % F1=F1(2:end,2:end);
         % F2=F2(2:end,2:end);
         periodicity=Date(1); % 4 for quarterly data and 12 for monthly and 1 for anual
-        Dummy=Dummy(2:end,:);
+        Dummy_Orig=Dummy(2:end,:);
         Date=Date(2:end);
     elseif FRT==0
+        Dummy_Orig=Dummy(1:end,:);
         periodicity=12;
         T=410*ones(size(T));
+    end
+    
+    if isPersianDate
+        Date_=Cal_conv(Date,0);
+    else
+        Date_=Date;
     end
     %T is transformation row vector for data
     %so that [0 1 2 3 4 5]=[no change, Ln, Diff, Double Diff, Diff_Ln, Double Diff_Ln]
@@ -83,10 +90,10 @@ for Tvarnameindx=1:length(Target_var_names)
     T=temp_;
     clear temp_
     
-    [Target, Exp_Var, Dummy_,Date_]=Real_time(Target, Exp_Var, Dummy,Date);
+    [Target, Exp_Var, Dummy_,Date_]=Real_time(Target, Exp_Var, Dummy_Orig,Date_);
     
     [Target_Level_X12, Exp_Var_B]=deseasonal(Target, Exp_Var,Date_,periodicity);
-    
+    Target_Historical=Target;
     %% Simulate for Model Selection
     model=nan(nd,horizon,Tt2,500); % Each model Forcats+horizon
     Desc_Model=cell(nd,Tt2,500);%+horizon
@@ -94,10 +101,8 @@ for Tvarnameindx=1:length(Target_var_names)
     Fin_Desc_Model=cell(tt,500);
     
     for tt=1:Tt2
-[Target, Exp_Var, Dummy,Date]=transformation(Target_Level_X12, Exp_Var_B, Dummy_, T(tt,:),Date_);
-        if isPersianDate
-            Date=Cal_conv(Date,0);
-        end
+        [Target, Exp_Var, Dummy,Date]=transformation(Target_Level_X12, Exp_Var_B, Dummy_, T(tt,:),Date_);
+        
         %-------------------------Sample Period------------------------------------
         %--- First Year of Data Set
         fyds=str2double(datestr(Date(1),'yyyy'));
@@ -118,7 +123,7 @@ for Tvarnameindx=1:length(Target_var_names)
         end
         
         dl=0;%length(Date)-length(Target);  %--- Real Time and transformation %% idon know what is this
-        sd=periodicity*((fyf-fyds)+(fqf-fqds)/12)-dl;        %--- Start Date to Forecasting
+        sd=periodicity*((fyf-fyds)+(fqf-fqds)/12)-dl;      %--- Start Date to Forecasting
         %nd=4*(lyf-fyf)+(lqf-fqf);          %--- End Date to Forecasting
         %--------------------------------------------------------------------------
         %-------------------------Forecasting Period for Evaluating Models---------
@@ -198,9 +203,10 @@ for Tvarnameindx=1:length(Target_var_names)
         %         OneStep=onestep;
         %     end
         %--------------------------Univariate Models---------------------------
-        dum=Dummy(1:sd+i-1,:);
+        
         %dum=zeros(size(Exp_Var,1),1);
-        Target_=Target(1:sd-horizon-1+i,1);
+        Target_=Target;
+        dum=Dummy_Orig(1:length(Target_)+horizon,:);
         Full_model(:,tt,Model_Count)=ARdirect(Target_,dum,OneStep,horizon);   Fin_Desc_Model(tt,Model_Count)={['ARdirect,  Trn:' Trans_mod{tt}]}; Model_Count=Model_Count+1;
         Full_model(:,tt,Model_Count)=TAR(Target_,OneStep,horizon);            Fin_Desc_Model(tt,Model_Count)={['TAR,  Trn:' Trans_mod{tt}]}; Model_Count=Model_Count+1;
         Full_model(:,tt,Model_Count)=UM(Target_,OneStep,horizon);            Fin_Desc_Model(tt,Model_Count)={['UM ,  Trn:' Trans_mod{tt}]};   Model_Count=Model_Count+1;
@@ -209,8 +215,8 @@ for Tvarnameindx=1:length(Target_var_names)
         Full_model(:,tt,Model_Count)=RWAO(Target_,OneStep,horizon);          Fin_Desc_Model(tt,Model_Count)={['RWAO,  Trn:' Trans_mod{tt}]};   Model_Count=Model_Count+1;
         %-----------------------Multivariate Models----------------------------
         %-------------------------------ARDL-----------------------------------
-        Exp_Var_=Exp_Var(1:sd-horizon-1+i,:);
-        
+        %Exp_Var_=Exp_Var(1:sd-horizon-1+i,:);
+        Exp_Var_=Exp_Var;
         %     [~,~, ~, ~, f_F1]=factoran(F1(1:sd-horizon-1+i,:), 3);
         %     [~,~, ~, ~, f_F2]=factoran(F2(1:sd-horizon-1+i,:), 2);
         
@@ -259,12 +265,12 @@ for Tvarnameindx=1:length(Target_var_names)
     Fin_Desc_Model(:,Model_Count:end)=[];
     %%
     %Remove  Extra model
-    %Model_Count=Model_Count-1;
-    number_models=size(model,4);Model_Count=Model_Count-1;
-    %models_counts=(number_models+horizon)/nd;
+    
+    Model_Count=Model_Count-1;
+    
     % Detrandorm forecasts
     for i=1:nd
-        for j=1:number_models
+        for j=1:Model_Count
             
             for tt=1:Tt2
                 
@@ -275,7 +281,7 @@ for Tvarnameindx=1:length(Target_var_names)
     end
     
     base=Target_Level_X12(end,1);
-    for j=1:number_models
+    for j=1:Model_Count
         for tt=1:Tt2
             Full_model(:,tt,j)=DeTransformation(squeeze(Full_model(:,tt,j)),base, T(tt,1));
         end
@@ -283,26 +289,26 @@ for Tvarnameindx=1:length(Target_var_names)
     %%
     %**************************************************************************
     %**************************************************************************
-    % psedu_outofsample=nan(nd-horizon,horizon,Tt2,number_models);
-    psedu_outofsample=nan(nd,horizon,Tt2,number_models);
+    % psedu_outofsample=nan(nd-horizon,horizon,Tt2,Model_Count);
+    psedu_outofsample=nan(nd,horizon,Tt2,Model_Count);
     
     
     for i=1:horizon
         psedu_outofsample(:,i,:,:)=model(:,i,:,:);%model(i:end-horizon+i-1,i,:,:);
     end
     
-    %     outofsample=nan(horizon,Tt2,number_models);
+    %     outofsample=nan(horizon,Tt2,Model_Count);
     %     for i=1:horizon
     %         outofsample(i,:,:)=model(end,i,:,:);
     %     end
     
     %----------------Calculate RMSFE for all Models----------------------------
     %%
-    RMSFE1=nan(nd,Tt2,number_models);
+    RMSFE1=nan(nd,Tt2,Model_Count);
     forecast_Errors=[];
     for tt=1:Tt2
         for i=1:nd
-            for j=1:number_models
+            for j=1:Model_Count
                 %[tt i j]
                 % Target_=Target(1:sd-horizon-1+i,1);
                 actual=Target_Level_X12(sd+i-horizon-1+1:sd-horizon-1+i+4,1);
@@ -328,7 +334,7 @@ for Tvarnameindx=1:length(Target_var_names)
     % Comparison
     % Full_model: Each model Forcats for Ful Sample
     % Desc_Model:cell(nd+horizon,300); % Describe  eache model
-    % RMSFE1:nan(horizon,number_models);% RMSE of Eache model
+    % RMSFE1:nan(horizon,Model_Count);% RMSE of Eache model
     % Fin_Desc_Model:cell(nd+horizon,300); % Describe  eache model
     % psedu_outofsample_combination: % best Out of sample Forcast
     % outofsample_combination:
@@ -336,8 +342,8 @@ for Tvarnameindx=1:length(Target_var_names)
     Historical_Number=5;
     R_Full_model=reshape(Full_model,horizon,[]);
     %Result_Database=mat2dataset([repmat(Target_Level_X12(end-Historical_Number+1:end).',size(R_Full_model,2),1),R_Full_model.',RMSFE1_Total(:)],'varnames',{'L1', 'L2', 'L3' , 'L4', 'L5','H1', 'H2', 'H3' , 'H4', 'RMSEF' });
-    Result_Database=mat2dataset([repmat(Target_Level_X12(end-Historical_Number+1:end).',size(R_Full_model,2),1),R_Full_model.',RMSFE1_Total(:)],...
-        'varnames',[ mat2cell(datestr(Date(end-4:end)),ones(5,1),11).',{'H1', 'H2', 'H3' , 'H4', 'RMSEF' }]);
+    Result_Database=mat2dataset([repmat(Target_Historical(end-Historical_Number+1:end).',size(R_Full_model,2),1),R_Full_model.',RMSFE1_Total(:)],...
+        'varnames',[ mat2cell(datestr(Date_(end-Historical_Number+1:end)),ones(5,1),11).',{'H1', 'H2', 'H3' , 'H4', 'RMSEF' }]);
     
     Result_Database.Descritption=Fin_Desc_Model(:);
     Result_Database = sortrows(Result_Database,'RMSEF','ascend');
@@ -345,7 +351,7 @@ for Tvarnameindx=1:length(Target_var_names)
     Top_count=5;
     figure;
     plot(R_Full_model,'Color',[0.9,0.9,0.9])
-    Fin_fore=double(Result_Database(1:fix(number_models/10),1:Historical_Number+horizon));
+    Fin_fore=double(Result_Database(1:fix(Model_Count/10),1:Historical_Number+horizon));
     plot(Fin_fore(1:Top_count,:).')
     hold on
     plot(mode(Fin_fore))
@@ -358,7 +364,7 @@ for Tvarnameindx=1:length(Target_var_names)
     leg{1,Top_count+1}='Mode';
     leg{1,Top_count+2}='Mean';
     legend (leg,'Location','northwest');
-    title(['4 Horizon Forecadte of ' Target_var_name ' __ From ' datestr(Date(end))]);
+    title(['4 Horizon Forecast of ' Target_var_name ' __ From ' datestr(Date(end))]);
     JmP=Date(end)-Date(end-1);
     
     ax=gca;
@@ -369,7 +375,7 @@ for Tvarnameindx=1:length(Target_var_names)
     % Growth of target variable
     figure;
     %  plot(diff(log(R_Full_model)),'Color',[0.9,0.9,0.9])
-    D_Fin_fore=diff(log(Fin_fore),1,2);%double(Result_Database(1:fix(number_models/10),1:horizon));
+    D_Fin_fore=diff(log(Fin_fore),1,2);%double(Result_Database(1:fix(Model_Count/10),1:horizon));
     plot(D_Fin_fore(1:Top_count,:).')
     hold on
     plot(mode(D_Fin_fore))
@@ -401,7 +407,7 @@ end
 %---------------------Foracast Combination(Simple average)-----------------
 for i=1:horizon
     l(i,1)=1;
-    for k=1:number_models
+    for k=1:Model_Count
         if RMSFE1(i,k)<=RMSFE1(i,1)
             psedu_outofsample_comb(:,i,l(i,1))=psedu_outofsample(:,i,k);
             outofsample_comb(i,l(i,1))=outofsample(i,k);
@@ -425,11 +431,11 @@ end
 % actual: Observed Data
 % model: (nd+horizon,horizon,300); % Each model Forcats
 % Desc_Model:cell(nd+horizon,300); % Describe  eache model
-% RMSFE1:nan(horizon,number_models);% RMSE of Eache model
+% RMSFE1:nan(horizon,Model_Count);% RMSE of Eache model
 % psedu_outofsample_combination: % best Out of sample Forcast
 % outofsample_combination:
 % Date: Date
-Output=nan(nd+horizon,number_models*nd);
+Output=nan(nd+horizon,Model_Count*nd);
 r=0;
 for i=1:size(model,3)
     for j=1:size(model,1)
